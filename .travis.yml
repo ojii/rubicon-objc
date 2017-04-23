@@ -21,6 +21,13 @@ matrix:
     - os: osx
       osx_image: xcode8
       language: generic
+    - os: osx
+      osx_image: xcode8.2
+      language: generic
+    - os: osx
+      osx_image: xcode8.3
+      language: generic
+
 install:
   - brew install python3
   - make -f Makefile
