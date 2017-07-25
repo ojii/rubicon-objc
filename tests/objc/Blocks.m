@@ -36,3 +36,12 @@
     return self.value;
 }
 @end
+
+@implementation BlockReceiverExample
+
+-(void) receiverMethod:(void (^)(int, int))blockArgument
+{
+    blockArgument(13, 14);
+}
+
+@end

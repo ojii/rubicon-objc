@@ -1205,3 +1205,16 @@ class BlockTests(unittest.TestCase):
         instance = BlockObjectExample.alloc().initWithDelegate_(delegate)
         result = instance.blockExample()
         self.assertEqual(result, 9)
+
+    def test_block_receiver(self):
+        BlockReceiverExample = ObjCClass("BlockReceiverExample")
+        instance = BlockReceiverExample.alloc().init()
+
+        values = []
+
+        def block(a: int, b: int) -> None:
+            values.append(a + b)
+
+        instance.receiverMethod_(block)
+
+        self.assertEqual(values, [25])

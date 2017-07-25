@@ -15,3 +15,8 @@
 - (id)initWithDelegate:(BlockDelegate *)delegate;
 - (int)blockExample;
 @end
+
+
+@interface BlockReceiverExample : NSObject
+- (void)receiverMethod:(void (^)(int, int))blockArgument;
+@end
