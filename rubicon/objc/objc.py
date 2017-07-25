@@ -1863,27 +1863,38 @@ class ObjCBlockInstance(ObjCInstance):
 _NSConcreteGlobalBlock = ObjCClass("__NSGlobalBlock__")
 
 
-def create_block(arg):
-    if not callable(arg):
+def create_block(py_func):
+    if not callable(py_func):
         raise TypeError('Blocks must be callable')
-    descriptor_struct = create_block_descriptor_struct(False, True)
-    invoke_type = CFUNCTYPE(c_void_p, c_void_p)
-    block_struct = type('ObjCBlockStruct', (Structure, ), {'_fields_': [
+    descriptor = type('descriptor', (Structure, ), {'_fields_': [
+        ('reserved', c_ulong),
+        ('size', c_ulong),
+    ]})
+    literal = type('literal', (Structure, ), {'_fields_': [
         ('isa', c_void_p),
         ('flags', c_int),
         ('reserved', c_int),
-        ('invoke', invoke_type),
-        ('descriptor', POINTER(descriptor_struct)),
+        ('invoke', c_void_p),
+        ('descriptor', c_void_p)
     ]})
-    def wrapper(*args):
-        print(args)
-        arg(1,2)
-    descriptor = descriptor_struct(0, sizeof(block_struct), b'v@?ii')
-    block = block_struct(
-        _NSConcreteGlobalBlock.ptr,
-        (1<<29),
-        0,
-        invoke_type(wrapper),
-        pointer(descriptor)
-    )
-    return cast(byref(block), objc_block)
+
+    restype, _, __, *arg_types = encoding_from_annotation(py_func, 0)
+
+    def wrapper(instance, *args):
+        py_func(*args)
+
+    signature = tuple(ctype_for_type(tp) for tp in arg_types)
+    restype = ctype_for_type(restype)
+
+    cfunc = CFUNCTYPE(restype, c_void_p, *signature)
+
+    bl = literal()
+    bl.isa = _NSConcreteGlobalBlock.ptr
+    bl.flags = 1 << 29  # BLOCK_HAS_STRET
+    bl.reserved = 0
+    bl.invoke = cast(cfunc(wrapper), c_void_p)
+    desc = descriptor()
+    desc.reserved = 0
+    desc.size = sizeof(literal)
+    bl.descriptor = cast(byref(desc), c_void_p)
+    return cast(byref(bl), objc_block)
