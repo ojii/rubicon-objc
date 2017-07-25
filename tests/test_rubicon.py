@@ -1235,6 +1235,22 @@ class BlockTests(unittest.TestCase):
         result = instance.blockExample()
         self.assertEqual(result, 9)
 
+    def test_block_delegate_auto_struct(self):
+        class BlockStruct(Structure):
+            _fields_ = [
+                ('a', c_int),
+                ('b', c_int),
+            ]
+        class DelegateAutoStruct(NSObject):
+            @objc_method
+            def structBlockMethod_(self, block: objc_block) -> int:
+                return block(BlockStruct(42, 43))
+        BlockObjectExample = ObjCClass("BlockObjectExample")
+        delegate = DelegateAutoStruct.alloc().init()
+        instance = BlockObjectExample.alloc().initWithDelegate_(delegate)
+        result = instance.structBlockExample()
+        self.assertEqual(result, 85)
+
     def test_block_receiver(self):
         BlockReceiverExample = ObjCClass("BlockReceiverExample")
         instance = BlockReceiverExample.alloc().init()

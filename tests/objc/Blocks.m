@@ -27,13 +27,22 @@
     return self;
 }
 
--(int) blockExample {
+-(int) blockExample
+{
     BlockDelegate *delegate = self.delegate;
 
     [delegate exampleMethod:^(int a, int b){
         self.value = a + b;
     }];
     return self.value;
+}
+
+-(int) structBlockExample
+{
+    BlockDelegate *delegate = self.delegate;
+    return [delegate structBlockMethod:^(blockStruct bs){
+        return bs.a + bs.b;
+    }];
 }
 @end
 

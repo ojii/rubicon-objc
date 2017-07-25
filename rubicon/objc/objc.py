@@ -1776,6 +1776,7 @@ def get_union_type(siglist):
     return _get_struct_or_union_type(siglist, Union, EndUnion, ')')
 
 
+#https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Articles/ocrtTypeEncodings.html
 def get_next_signature_type(siglist):
     sig_code = siglist.popleft()
     if sig_code in SIMPLE_SIGNATURE_TYPES:
