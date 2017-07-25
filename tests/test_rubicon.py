@@ -1259,6 +1259,7 @@ class BlockTests(unittest.TestCase):
 
         def block(a: int, b: int) -> None:
             values.append(a + b)
+        # the next line segfaults :(
         # instance.receiverMethod_(block)
 
-        # self.assertEqual(values, [25])
+        self.assertEqual(values, [25])

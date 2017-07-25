@@ -1867,7 +1867,7 @@ def create_block(arg):
     if not callable(arg):
         raise TypeError('Blocks must be callable')
     descriptor_struct = create_block_descriptor_struct(False, True)
-    invoke_type = CFUNCTYPE(c_void_p, c_int, c_int)
+    invoke_type = CFUNCTYPE(c_void_p, c_void_p)
     block_struct = type('ObjCBlockStruct', (Structure, ), {'_fields_': [
         ('isa', c_void_p),
         ('flags', c_int),
@@ -1875,12 +1875,15 @@ def create_block(arg):
         ('invoke', invoke_type),
         ('descriptor', POINTER(descriptor_struct)),
     ]})
+    def wrapper(*args):
+        print(args)
+        arg(1,2)
     descriptor = descriptor_struct(0, sizeof(block_struct), b'v@?ii')
     block = block_struct(
         _NSConcreteGlobalBlock.ptr,
         (1<<29),
         0,
-        invoke_type(arg),
+        invoke_type(wrapper),
         pointer(descriptor)
     )
     return cast(byref(block), objc_block)
