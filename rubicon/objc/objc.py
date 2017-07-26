@@ -1878,12 +1878,18 @@ def create_block(py_func):
         ('descriptor', c_void_p)
     ]})
 
-    restype, _, __, *arg_types = encoding_from_annotation(py_func, 0)
+    argspec = inspect.getfullargspec(inspect.unwrap(py_func))
+
+    try:
+        restype = argspec.annotations['return']
+        arg_types = list(argspec.annotations[varname] for varname in argspec.args)
+    except KeyError:
+        raise ValueError('Block callables must be fully annotated')
+    signature = tuple(ctype_for_type(tp) for tp in arg_types)
 
     def wrapper(instance, *args):
         py_func(*args)
 
-    signature = tuple(ctype_for_type(tp) for tp in arg_types)
     restype = ctype_for_type(restype)
 
     cfunc = CFUNCTYPE(restype, c_void_p, *signature)

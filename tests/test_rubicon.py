@@ -1262,3 +1262,18 @@ class BlockTests(unittest.TestCase):
         instance.receiverMethod_(block)
 
         self.assertEqual(values, [27])
+
+    def test_block_receiver_unannotated(self):
+        BlockReceiverExample = ObjCClass("BlockReceiverExample")
+        instance = BlockReceiverExample.alloc().init()
+
+        def block(a, b):
+            return a + b
+        with self.assertRaises(ValueError):
+            instance.receiverMethod_(block)
+
+    def test_block_receiver_lambda(self):
+        BlockReceiverExample = ObjCClass("BlockReceiverExample")
+        instance = BlockReceiverExample.alloc().init()
+        with self.assertRaises(ValueError):
+            instance.receiverMethod_(lambda a, b: a + b)
