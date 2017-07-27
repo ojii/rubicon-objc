@@ -1823,14 +1823,22 @@ def decode_block_signature(signature):
     return _SIGNATURE_CACHE[signature]
 
 
+class BlockConsts:
+    HAS_COPY_DISPOSE = 1 << 25
+    HAS_CTOR = 1 << 26
+    IS_GLOBAL = 1 << 28
+    HAS_STRET = 1 << 29
+    HAS_SIGNATURE = 1 << 30
+
+
 class ObjCBlock:
     def __init__(self, pointer, return_type=AUTO, *arg_types):
         if isinstance(pointer, ObjCInstance):
             pointer = pointer.ptr
         self.pointer = pointer
         self.struct = cast(self.pointer, POINTER(ObjCBlockStruct))
-        self.has_helpers = self.struct.contents.flags & (1<<25)
-        self.has_signature = self.struct.contents.flags & (1<<30)
+        self.has_helpers = self.struct.contents.flags & BlockConsts.HAS_COPY_DISPOSE
+        self.has_signature = self.struct.contents.flags & BlockConsts.HAS_SIGNATURE
         self.descriptor = cast_block_descriptor(self)
         self.signature = self.descriptor.contents.signature.decode('ascii') if self.has_signature else None
         if return_type is AUTO:
@@ -1896,7 +1904,7 @@ def create_block(py_func):
 
     bl = literal()
     bl.isa = _NSConcreteGlobalBlock.ptr
-    bl.flags = 1 << 29  # BLOCK_HAS_STRET
+    bl.flags = BlockConsts.HAS_STRET
     bl.reserved = 0
     bl.invoke = cast(cfunc(wrapper), c_void_p)
     desc = descriptor()
