@@ -678,7 +678,7 @@ class ObjCMethod(object):
 
             # Convert result to python type if it is a instance or class pointer.
             from .core_foundation import to_value
-            if self.restype == objc_id:
+            if self.restype in {objc_id, objc_block}:
                 result = to_value(ObjCInstance(result))
             elif self.restype == Class:
                 result = ObjCClass(result)
@@ -1034,7 +1034,7 @@ class ObjCInstance(object):
             return cls._cached_objects[object_ptr.value]
 
         # If the given pointer points to a class, return an ObjCClass instead (if we're not already creating one).
-        if not issubclass(cls, ObjCClass) and objc.object_isClass(object_ptr):
+        if not is_block and not issubclass(cls, ObjCClass) and objc.object_isClass(object_ptr):
             return ObjCClass(object_ptr)
 
         # Otherwise, create a new ObjCInstance.
@@ -1715,6 +1715,7 @@ def create_block(py_func):
     descriptor = type('descriptor', (Structure, ), {'_fields_': [
         ('reserved', c_ulong),
         ('size', c_ulong),
+        ('signature', c_char_p),
     ]})
     literal = type('literal', (Structure, ), {'_fields_': [
         ('isa', c_void_p),
@@ -1742,11 +1743,13 @@ def create_block(py_func):
 
     bl = literal()
     bl.isa = _NSConcreteGlobalBlock.ptr
-    bl.flags = BlockConsts.HAS_STRET
+    bl.flags = BlockConsts.HAS_STRET | BlockConsts.HAS_SIGNATURE
     bl.reserved = 0
     bl.invoke = cast(cfunc(wrapper), c_void_p)
     desc = descriptor()
     desc.reserved = 0
     desc.size = sizeof(literal)
+    #TODO: actually construct the real signature
+    desc.signature = b'i@?ii'
     bl.descriptor = cast(byref(desc), c_void_p)
     return cast(byref(bl), objc_block)

@@ -1282,3 +1282,13 @@ class BlockTests(unittest.TestCase):
         instance = BlockReceiverExample.alloc().init()
         with self.assertRaises(ValueError):
             instance.receiverMethod_(lambda a, b: a + b)
+
+    def test_block_round_trip(self):
+        BlockRoundTrip = ObjCClass("BlockRoundTrip")
+        instance = BlockRoundTrip.alloc().init()
+
+        def block(a: int, b: int) -> int:
+            return a + b
+
+        returned_block = instance.roundTrip_(block)
+        self.assertEqual(returned_block(8, 9), 17)
