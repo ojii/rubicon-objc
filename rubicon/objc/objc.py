@@ -1675,6 +1675,7 @@ class ObjCBlock:
             pointer = pointer.ptr
         self.pointer = pointer
         self.struct = cast(self.pointer, POINTER(ObjCBlockStruct))
+        print_struct(self.struct.contents)
         self.has_helpers = self.struct.contents.flags & BlockConsts.HAS_COPY_DISPOSE
         self.has_signature = self.struct.contents.flags & BlockConsts.HAS_SIGNATURE
         self.descriptor = cast_block_descriptor(self)
@@ -1709,12 +1710,36 @@ class ObjCBlockInstance(ObjCInstance):
 _NSConcreteGlobalBlock = ObjCClass("__NSGlobalBlock__")
 
 
+NOGC = []
+
+
+def print_struct(s):
+    print(s.__class__.__name__)
+    for attr, _ in s._fields_:
+        print(f'  {attr}: {getattr(s, attr)}')
+
+
+def copy_helper(dst, src):
+    print('COPY HELPER', dst, src)
+
+
+def dispose_helper(src):
+    print('DISPOSE HELPER', src)
+
+c_copy_helper_type = CFUNCTYPE(c_void_p, c_void_p, c_void_p)
+c_copy_helper = c_copy_helper_type(copy_helper)
+c_dispose_helper_type = CFUNCTYPE(c_void_p, c_void_p)
+c_dispose_helper = c_dispose_helper_type(dispose_helper)
+
+
 def create_block(py_func):
     if not callable(py_func):
         raise TypeError('Blocks must be callable')
     descriptor = type('descriptor', (Structure, ), {'_fields_': [
         ('reserved', c_ulong),
         ('size', c_ulong),
+        ('copy_helper', c_copy_helper_type),
+        ('dispose_helper', c_dispose_helper_type),
         ('signature', c_char_p),
     ]})
     literal = type('literal', (Structure, ), {'_fields_': [
@@ -1735,7 +1760,8 @@ def create_block(py_func):
     signature = tuple(ctype_for_type(tp) for tp in arg_types)
 
     def wrapper(instance, *args):
-        py_func(*args)
+        print('wrapper is called')
+        return py_func(*args)
 
     restype = ctype_for_type(restype)
 
@@ -1743,13 +1769,21 @@ def create_block(py_func):
 
     bl = literal()
     bl.isa = _NSConcreteGlobalBlock.ptr
-    bl.flags = BlockConsts.HAS_STRET | BlockConsts.HAS_SIGNATURE
+    bl.flags = BlockConsts.HAS_STRET | BlockConsts.HAS_SIGNATURE | BlockConsts.HAS_COPY_DISPOSE
     bl.reserved = 0
-    bl.invoke = cast(cfunc(wrapper), c_void_p)
+    func = cfunc(wrapper)
+    bl.invoke = cast(func, c_void_p)
     desc = descriptor()
     desc.reserved = 0
     desc.size = sizeof(literal)
+    desc.dispose_helper = c_dispose_helper
+    desc.copy_helper = c_copy_helper
     #TODO: actually construct the real signature
     desc.signature = b'i@?ii'
     bl.descriptor = cast(byref(desc), c_void_p)
-    return cast(byref(bl), objc_block)
+    block = cast(byref(bl), objc_block)
+    NOGC.append(bl)
+    NOGC.append(desc)
+    NOGC.append(func)
+    print_struct(bl)
+    return block

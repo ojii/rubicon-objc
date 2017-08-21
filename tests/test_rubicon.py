@@ -1288,6 +1288,7 @@ class BlockTests(unittest.TestCase):
         instance = BlockRoundTrip.alloc().init()
 
         def block(a: int, b: int) -> int:
+            print('block is called')
             return a + b
 
         returned_block = instance.roundTrip_(block)
