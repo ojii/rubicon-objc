@@ -1779,7 +1779,12 @@ class Block:
         self.descriptor = BlockDescriptor()
         self.descriptor.reserved = 0
         self.descriptor.size = sizeof(BlockLiteral)
+
+        encoding_for_ctype(restype)
         self.descriptor.signature = b'i@?ii'
+        self.descriptor.signature = encoding_for_ctype(restype) + b'@?' + b''.join(
+            encoding_for_ctype(arg) for arg in signature
+        )
         self.literal.descriptor = cast(byref(self.descriptor), c_void_p)
         self.block = cast(byref(self.literal), objc_block)
 
