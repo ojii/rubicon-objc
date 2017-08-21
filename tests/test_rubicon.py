@@ -23,8 +23,7 @@ from rubicon.objc import (
     send_message, ObjCBlock
 )
 from rubicon.objc import core_foundation, types
-from rubicon.objc.objc import ObjCBoundMethod, objc_block, objc_id, Class
-
+from rubicon.objc.objc import ObjCBoundMethod, objc_block, objc_id, Class, Block
 
 # Load the test harness library
 harnesslib = util.find_library('rubiconharness')
@@ -1283,12 +1282,22 @@ class BlockTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             instance.receiverMethod_(lambda a, b: a + b)
 
+    def test_block_receiver_explicit(self):
+        BlockReceiverExample = ObjCClass("BlockReceiverExample")
+        instance = BlockReceiverExample.alloc().init()
+
+        values = []
+
+        block = Block(lambda a, b: values.append(a + b), None, int, int)
+        instance.receiverMethod_(block)
+
+        self.assertEqual(values, [27])
+
     def test_block_round_trip(self):
         BlockRoundTrip = ObjCClass("BlockRoundTrip")
         instance = BlockRoundTrip.alloc().init()
 
         def block(a: int, b: int) -> int:
-            print('block is called')
             return a + b
 
         returned_block = instance.roundTrip_(block)

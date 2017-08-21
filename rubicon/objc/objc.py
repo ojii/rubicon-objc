@@ -1711,6 +1711,7 @@ _NSConcreteGlobalBlock = ObjCClass("__NSGlobalBlock__")
 
 
 NOGC = []
+NOTHING = object()
 
 
 def print_struct(s):
@@ -1719,71 +1720,75 @@ def print_struct(s):
         print(f'  {attr}: {getattr(s, attr)}')
 
 
-def copy_helper(dst, src):
-    print('COPY HELPER', dst, src)
-
-
-def dispose_helper(src):
-    print('DISPOSE HELPER', src)
-
-c_copy_helper_type = CFUNCTYPE(c_void_p, c_void_p, c_void_p)
-c_copy_helper = c_copy_helper_type(copy_helper)
-c_dispose_helper_type = CFUNCTYPE(c_void_p, c_void_p)
-c_dispose_helper = c_dispose_helper_type(dispose_helper)
-
-
-def create_block(py_func):
-    if not callable(py_func):
-        raise TypeError('Blocks must be callable')
-    descriptor = type('descriptor', (Structure, ), {'_fields_': [
+class BlockDescriptor(Structure):
+    _fields_ = [
         ('reserved', c_ulong),
         ('size', c_ulong),
-        ('copy_helper', c_copy_helper_type),
-        ('dispose_helper', c_dispose_helper_type),
         ('signature', c_char_p),
-    ]})
-    literal = type('literal', (Structure, ), {'_fields_': [
+    ]
+
+
+class BlockLiteral(Structure):
+    _fields_ = [
         ('isa', c_void_p),
         ('flags', c_int),
         ('reserved', c_int),
         ('invoke', c_void_p),
         ('descriptor', c_void_p)
-    ]})
+    ]
 
-    argspec = inspect.getfullargspec(inspect.unwrap(py_func))
 
-    try:
-        restype = argspec.annotations['return']
-        arg_types = list(argspec.annotations[varname] for varname in argspec.args)
-    except KeyError:
-        raise ValueError('Block callables must be fully annotated')
-    signature = tuple(ctype_for_type(tp) for tp in arg_types)
+class Block:
+    def __init__(self, func, restype=NOTHING, *arg_types):
+        if not callable(func):
+            raise TypeError('Blocks must be callable')
 
-    def wrapper(instance, *args):
-        print('wrapper is called')
-        return py_func(*args)
+        self.func = func
 
-    restype = ctype_for_type(restype)
+        argspec = inspect.getfullargspec(inspect.unwrap(func))
 
-    cfunc = CFUNCTYPE(restype, c_void_p, *signature)
+        if restype is NOTHING:
+            try:
+                restype = argspec.annotations['return']
+            except KeyError:
+                raise ValueError(
+                    'Block callables must be fully annotated or an explicit '
+                    'return type must be specified.'
+                )
 
-    bl = literal()
-    bl.isa = _NSConcreteGlobalBlock.ptr
-    bl.flags = BlockConsts.HAS_STRET | BlockConsts.HAS_SIGNATURE | BlockConsts.HAS_COPY_DISPOSE
-    bl.reserved = 0
-    func = cfunc(wrapper)
-    bl.invoke = cast(func, c_void_p)
-    desc = descriptor()
-    desc.reserved = 0
-    desc.size = sizeof(literal)
-    desc.dispose_helper = c_dispose_helper
-    desc.copy_helper = c_copy_helper
-    #TODO: actually construct the real signature
-    desc.signature = b'i@?ii'
-    bl.descriptor = cast(byref(desc), c_void_p)
-    block = cast(byref(bl), objc_block)
-    NOGC.append(bl)
-    NOGC.append(desc)
-    NOGC.append(func)
-    print_struct(bl)
-    return block
+        if not arg_types:
+            try:
+                arg_types = list(argspec.annotations[varname] for varname in argspec.args)
+            except KeyError:
+                raise ValueError(
+                    'Block callables must be fully annotated or explicit '
+                    'argument types must be specified.'
+                )
+        signature = tuple(ctype_for_type(tp) for tp in arg_types)
+
+        restype = ctype_for_type(restype)
+
+        self.cfunc_type = CFUNCTYPE(restype, c_void_p, *signature)
+
+        self.literal = BlockLiteral()
+        self.literal.isa = _NSConcreteGlobalBlock.ptr
+        self.literal.flags = BlockConsts.HAS_STRET | BlockConsts.HAS_SIGNATURE
+        self.literal.reserved = 0
+        self.cfunc = self.cfunc_type(self.wrapper)
+        self.literal.invoke = cast(self.cfunc, c_void_p)
+        self.descriptor = BlockDescriptor()
+        self.descriptor.reserved = 0
+        self.descriptor.size = sizeof(BlockLiteral)
+        self.descriptor.signature = b'i@?ii'
+        self.literal.descriptor = cast(byref(self.descriptor), c_void_p)
+        self.block = cast(byref(self.literal), objc_block)
+
+    def wrapper(self, instance, *args):
+        return self.func(*args)
+
+
+def create_block(py_func):
+    if isinstance(py_func, Block):
+        return py_func.block
+    else:
+        return Block(py_func).block
